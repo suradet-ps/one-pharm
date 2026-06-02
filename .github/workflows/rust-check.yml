@@ -6,7 +6,7 @@ jobs:
   clippy-pedantic:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
       - name: Install system dependencies (Tauri on Linux)
         run: |
           sudo apt-get update
@@ -21,7 +21,7 @@ jobs:
   miri-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
@@ -30,7 +30,7 @@ jobs:
   cargo-vet:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-vet
       - run: cargo vet --locked
