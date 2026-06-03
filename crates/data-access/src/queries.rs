@@ -108,19 +108,23 @@ ORDER BY DEPT_NAME
 
 /// Query 2 — Drug movements with rolling DIS
 ///
-/// Parameters (positional @P1..@P13):
+/// DRUG_GN is the master table — ALL working codes are shown,
+/// regardless of whether they exist in INV_MD (stock master).
+/// This ensures drugs with zero inventory still appear in the list.
+///
+/// Parameters (positional @P1..@P11):
 ///   1,2   ym_fw          FW_QTY, FW_VALUE
 ///   3,4   ym_display_to  RM_QTY, RM_VALUE
 ///   5     stock_id       CARD display
 ///   6,7   ym1, ym2       CARD display period
 ///   8     stock_id       CARD rolling
 ///   9,10  ym_roll_from, ym_display_to  CARD rolling window
-///   11    stock_id       INV_MD WHERE
+///   11    stock_id       INV_MD / scalar subqueries
 const SQL_GET_DRUG_MOVEMENTS: &str = r"
 SELECT *
 FROM (
     SELECT
-        i.WORKING_CODE,
+        g.WORKING_CODE,
         g.DRUG_NAME,
         i.LAST_PACK_RATIO,
         dbo.IS_ED(g.IS_ED)  AS NLEM,
@@ -128,16 +132,16 @@ FROM (
         (SELECT TOP 1 c.REMAIN_QTY
          FROM   CARD c WITH (NOLOCK)
          WHERE  LEFT(dbo.ce2cymd(c.OPERATE_DATE), 6) <= @P1
-           AND  c.WORKING_CODE = i.WORKING_CODE
-           AND  c.STOCK_ID     = i.DEPT_ID
+           AND  c.WORKING_CODE = g.WORKING_CODE
+           AND  c.STOCK_ID     = @P11
          ORDER BY c.OPERATE_DATE DESC, c.RECORD_NUMBER DESC
         ) AS FW_QTY,
 
         (SELECT TOP 1 c.REMAIN_VALUE
          FROM   CARD c WITH (NOLOCK)
          WHERE  LEFT(dbo.ce2cymd(c.OPERATE_DATE), 6) <= @P2
-           AND  c.WORKING_CODE = i.WORKING_CODE
-           AND  c.STOCK_ID     = i.DEPT_ID
+           AND  c.WORKING_CODE = g.WORKING_CODE
+           AND  c.STOCK_ID     = @P11
          ORDER BY c.OPERATE_DATE DESC, c.RECORD_NUMBER DESC
         ) AS FW_VALUE,
 
@@ -150,8 +154,8 @@ FROM (
             SELECT TOP 1 c.REMAIN_QTY
             FROM   CARD c WITH (NOLOCK)
             WHERE  LEFT(dbo.ce2cymd(c.OPERATE_DATE), 6) <= @P3
-              AND  c.WORKING_CODE = i.WORKING_CODE
-              AND  c.STOCK_ID     = i.DEPT_ID
+              AND  c.WORKING_CODE = g.WORKING_CODE
+              AND  c.STOCK_ID     = @P11
             ORDER BY c.OPERATE_DATE DESC, c.RECORD_NUMBER DESC
         ), 0) AS RM_QTY,
 
@@ -160,17 +164,18 @@ FROM (
         (SELECT TOP 1 c.REMAIN_VALUE
          FROM   CARD c WITH (NOLOCK)
          WHERE  LEFT(dbo.ce2cymd(c.OPERATE_DATE), 6) <= @P4
-           AND  c.WORKING_CODE = i.WORKING_CODE
-           AND  c.STOCK_ID     = i.DEPT_ID
+           AND  c.WORKING_CODE = g.WORKING_CODE
+           AND  c.STOCK_ID     = @P11
          ORDER BY c.OPERATE_DATE DESC, c.RECORD_NUMBER DESC
         ) AS RM_VALUE,
 
         ISNULL(Cr.ROLLING_DIS_QTY,   0) AS ROLLING_DIS_QTY,
         ISNULL(Cr.ROLLING_DIS_VALUE, 0) AS ROLLING_DIS_VALUE
 
-    FROM INV_MD i WITH (NOLOCK)
-    LEFT JOIN DRUG_GN g WITH (NOLOCK)
-           ON g.WORKING_CODE = i.WORKING_CODE
+    FROM DRUG_GN g WITH (NOLOCK)
+    LEFT JOIN INV_MD i WITH (NOLOCK)
+           ON i.WORKING_CODE = g.WORKING_CODE
+          AND i.DEPT_ID = @P11
 
     LEFT JOIN (
         SELECT
@@ -195,7 +200,7 @@ FROM (
         WHERE c1.STOCK_ID = @P5
           AND LEFT(dbo.ce2cymd(c1.OPERATE_DATE), 6) BETWEEN @P6 AND @P7
         GROUP BY c1.WORKING_CODE, c1.STOCK_ID
-    ) AS Cd ON Cd.WORKING_CODE = i.WORKING_CODE AND Cd.STOCK_ID = i.DEPT_ID
+    ) AS Cd ON Cd.WORKING_CODE = g.WORKING_CODE AND Cd.STOCK_ID = @P11
 
     LEFT JOIN (
         SELECT
@@ -212,16 +217,9 @@ FROM (
         WHERE c2.STOCK_ID = @P8
           AND LEFT(dbo.ce2cymd(c2.OPERATE_DATE), 6) BETWEEN @P9 AND @P10
         GROUP BY c2.WORKING_CODE, c2.STOCK_ID
-    ) AS Cr ON Cr.WORKING_CODE = i.WORKING_CODE AND Cr.STOCK_ID = i.DEPT_ID
-
-    WHERE i.DEPT_ID = @P11
-      AND g.WORKING_CODE IS NOT NULL
+    ) AS Cr ON Cr.WORKING_CODE = g.WORKING_CODE AND Cr.STOCK_ID = @P11
 
 ) AS T
-WHERE (  ISNULL(T.FW_QTY,  0)
-       + ISNULL(T.RCV_QTY, 0)
-       + ISNULL(T.DIS_QTY, 0)
-       + ISNULL(T.RM_QTY,  0)) > 0
 ORDER BY T.NLEM, T.DRUG_NAME
 ";
 
