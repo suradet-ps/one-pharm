@@ -34,6 +34,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
           save-if: false
+          lookup-only: true
 
       - name: Install Frontend Dependencies
         run: bun install
