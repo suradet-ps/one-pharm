@@ -17,6 +17,7 @@ bb8-tiberius = "0.16"
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
+thiserror = "1"
 
 kpi-core = { path = "../kpi-core" }
 settings = { path = "../settings" }

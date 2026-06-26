@@ -26,6 +26,12 @@ serde = { version = "1.0", features = ["derive"] }
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
+# Database (used directly for `bb8::PooledConnection` type in command
+# signatures, in addition to going through the data-access facade)
+bb8 = "0.9"
+bb8-tiberius = "0.16"
+chrono = { version = "0.4", features = ["serde"] }
+
 # Logging
 log = "0.4"
 

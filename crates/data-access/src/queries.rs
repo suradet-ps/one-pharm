@@ -8,6 +8,8 @@ use chrono::{Datelike, NaiveDate};
 use kpi_core::{RawDrugRow, RawExpiryLotRow};
 use tiberius::{Row, numeric::Numeric};
 
+use crate::error::Result;
+
 // ─────────────────────────────────────────────
 // Date helpers
 // ─────────────────────────────────────────────
@@ -268,41 +270,48 @@ ORDER BY c.EXPIRED_DATE ASC
 // ─────────────────────────────────────────────
 // Row extraction helpers
 // ─────────────────────────────────────────────
+//
+// tiberius's idiomatic row extraction uses `row.try_get::<T, _>(col)`
+// with the **exact** Rust type that matches the SQL column type:
+//   * `numeric` / `decimal` → `tiberius::numeric::Numeric`
+//   * `int`                 → `i32`
+//   * `bigint`              → `i64`
+//   * `varchar` / `nvarchar`→ `&str` or `String`
+//
+// The original `get_f64` helper tried six different types in a chain
+// and then converted `Numeric` to `f64` via `format!("{v}").parse()`,
+// which loses precision for SQL `numeric(19,4)` columns (INVS uses
+// `numeric(13,2)` for values and `numeric(18,4)` for costs).  We
+// instead ask tiberius for the typed value once and convert using
+// the `From<Numeric> for f64` impl in `tiberius/src/tds/numeric.rs`.
 
-/// Try to get a f64 from a tiberius Row column, handling various SQL numeric types.
+/// Extract a numeric column as `f64`.
+///
+/// Tries `Numeric` (the canonical tiberius type for SQL `numeric` /
+/// `decimal`) and falls back to integer types for compatibility
+/// with views that may project `SUM(...)` as `int` / `bigint`.
+/// Crucially, the `Numeric → f64` conversion goes through
+/// `tiberius::numeric::Numeric::value()` and `::scale()` — never
+/// through `format!` — to preserve precision.
 fn get_f64(row: &Row, col: &str) -> Option<f64> {
+  if let Ok(Some(v)) = row.try_get::<Numeric, _>(col) {
+    return Some(f64::from(v));
+  }
   if let Ok(Some(v)) = row.try_get::<f64, _>(col) {
     return Some(v);
-  }
-  if let Ok(Some(v)) = row.try_get::<f32, _>(col) {
-    return Some(f64::from(v));
-  }
-  if let Ok(Some(v)) = row.try_get::<i32, _>(col) {
-    return Some(f64::from(v));
   }
   if let Ok(Some(v)) = row.try_get::<i64, _>(col) {
     return Some(v as f64);
   }
-  if let Ok(Some(v)) = row.try_get::<i16, _>(col) {
+  if let Ok(Some(v)) = row.try_get::<i32, _>(col) {
     return Some(f64::from(v));
-  }
-  if let Ok(Some(v)) = row.try_get::<Numeric, _>(col) {
-    let s = format!("{v}");
-    if let Ok(f) = s.parse::<f64>() {
-      return Some(f);
-    }
   }
   None
 }
 
 /// Get a string value from a row.
 fn get_str(row: &Row, col: &str) -> String {
-  row
-    .try_get::<&str, _>(col)
-    .ok()
-    .flatten()
-    .unwrap_or("")
-    .to_string()
+  get_opt_str(row, col).unwrap_or_default()
 }
 
 /// Get an optional string value from a row.
@@ -316,36 +325,14 @@ fn get_opt_str(row: &Row, col: &str) -> Option<String> {
 
 /// Get an optional i32 from a row.
 fn get_opt_i32(row: &Row, col: &str) -> Option<i32> {
-  if let Ok(Some(v)) = row.try_get::<i32, _>(col) {
-    return Some(v);
-  }
-  if let Ok(Some(v)) = row.try_get::<i64, _>(col) {
-    return Some(v as i32);
-  }
-  if let Ok(Some(v)) = row.try_get::<i16, _>(col) {
-    return Some(i32::from(v));
-  }
-  None
+  row.try_get::<i32, _>(col).ok().flatten()
 }
 
 /// Get an optional i64 from a row.
 fn get_opt_i64(row: &Row, col: &str) -> Option<i64> {
-  if let Ok(Some(v)) = row.try_get::<i64, _>(col) {
-    return Some(v);
-  }
-  if let Ok(Some(v)) = row.try_get::<i32, _>(col) {
-    return Some(i64::from(v));
-  }
-  if let Ok(Some(v)) = row.try_get::<i16, _>(col) {
-    return Some(i64::from(v));
-  }
-  if let Ok(Some(v)) = row.try_get::<Numeric, _>(col) {
-    let s = format!("{v}");
-    if let Ok(i) = s.parse::<i64>() {
-      return Some(i);
-    }
-  }
-  None
+  // `EXPIRED_DATE` is a SQL `int` (yyyymmdd as int) in the schema, so
+  // ask for `i64` only — no chained type-fallback.
+  row.try_get::<i64, _>(col).ok().flatten()
 }
 
 // ─────────────────────────────────────────────
@@ -365,16 +352,9 @@ pub struct Warehouse {
 /// Fetch all drug warehouses.
 pub async fn fetch_warehouses(
   conn: &mut bb8::PooledConnection<'_, bb8_tiberius::ConnectionManager>,
-) -> Result<Vec<Warehouse>, String> {
-  let stream = conn
-    .simple_query(SQL_GET_WAREHOUSES)
-    .await
-    .map_err(|e| format!("warehouse query error: {e}"))?;
-
-  let rows = stream
-    .into_first_result()
-    .await
-    .map_err(|e| format!("warehouse fetch error: {e}"))?;
+) -> Result<Vec<Warehouse>> {
+  let stream = conn.simple_query(SQL_GET_WAREHOUSES).await?;
+  let rows = stream.into_first_result().await?;
 
   let result: Vec<Warehouse> = rows
     .iter()
@@ -401,7 +381,7 @@ pub async fn fetch_drug_movements(
   date_from: NaiveDate,
   date_to: NaiveDate,
   rolling_months: i32,
-) -> Result<DrugMovementResult, String> {
+) -> Result<DrugMovementResult> {
   // Display period yyyymm
   let ym1 = date_to_ym(date_from);
   let ym_display_to = date_to_ym(date_to);
@@ -438,13 +418,8 @@ pub async fn fetch_drug_movements(
         &stock_id as &dyn tiberius::ToSql,      // @P11 INV_MD WHERE
       ],
     )
-    .await
-    .map_err(|e| format!("drug movements query error: {e}"))?;
-
-  let rows = stream
-    .into_first_result()
-    .await
-    .map_err(|e| format!("drug movements fetch error: {e}"))?;
+    .await?;
+  let rows = stream.into_first_result().await?;
 
   let result: Vec<RawDrugRow> = rows
     .iter()
@@ -475,16 +450,11 @@ pub async fn fetch_drug_movements(
 pub async fn fetch_last_cost(
   conn: &mut bb8::PooledConnection<'_, bb8_tiberius::ConnectionManager>,
   working_code: &str,
-) -> Result<Option<(f64, f64)>, String> {
+) -> Result<Option<(f64, f64)>> {
   let stream = conn
     .query(SQL_GET_LAST_COST, &[&working_code as &dyn tiberius::ToSql])
-    .await
-    .map_err(|e| format!("last cost query error: {e}"))?;
-
-  let rows = stream
-    .into_first_result()
-    .await
-    .map_err(|e| format!("last cost fetch error: {e}"))?;
+    .await?;
+  let rows = stream.into_first_result().await?;
 
   if let Some(row) = rows.first() {
     let cost = get_f64(row, "LAST_BUY_COST").unwrap_or(0.0);
@@ -501,7 +471,7 @@ pub async fn fetch_near_expiry(
   stock_id: &str,
   date_to: NaiveDate,
   near_expiry_days: i32,
-) -> Result<Vec<RawExpiryLotRow>, String> {
+) -> Result<Vec<RawExpiryLotRow>> {
   let ym2 = date_to_ym(date_to);
 
   let stream = conn
@@ -513,13 +483,8 @@ pub async fn fetch_near_expiry(
         &near_expiry_days as &dyn tiberius::ToSql,
       ],
     )
-    .await
-    .map_err(|e| format!("near expiry query error: {e}"))?;
-
-  let rows = stream
-    .into_first_result()
-    .await
-    .map_err(|e| format!("near expiry fetch error: {e}"))?;
+    .await?;
+  let rows = stream.into_first_result().await?;
 
   let result: Vec<RawExpiryLotRow> = rows
     .iter()
