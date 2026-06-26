@@ -289,7 +289,12 @@ const dosSegments = computed(() => {
   const s = store.summary;
   if (!s) return [];
   return [
-    { key: 'stockout', label: 'Stockout Risk', count: s.stockout_count, color: 'var(--status-danger)' },
+    {
+      key: 'stockout',
+      label: 'Stockout Risk',
+      count: s.stockout_count,
+      color: 'var(--status-danger)',
+    },
     { key: 'low', label: 'Low Stock', count: s.low_stock_count, color: 'var(--status-warn)' },
     { key: 'normal', label: 'Normal', count: s.normal_count, color: 'var(--status-ok)' },
     { key: 'overstock', label: 'Overstock', count: s.overstock_count, color: 'var(--status-info)' },
