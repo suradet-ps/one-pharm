@@ -314,7 +314,7 @@ mod tests {
       port: 1433,
       database: "INVS".into(),
       username: "sa".into(),
-      password: "P@ss'word".into(), // contains a single quote
+      password: "test'fixture".into(), // contains a single quote for escape testing
       use_windows_auth: false,
       trust_cert: true,
       connect_timeout_secs: 10,
@@ -338,7 +338,7 @@ mod tests {
     assert!(ado.contains("database='INVS'"), "{ado}");
     assert!(ado.contains("user id='sa'"), "{ado}");
     // The password contains a single quote — must be escaped.
-    assert!(ado.contains("password='P@ss''word'"), "{ado}");
+    assert!(ado.contains("password='test''fixture'"), "{ado}");
     assert!(ado.contains("Application Name=one-pharm"), "{ado}");
     assert!(ado.contains("connect timeout=10"), "{ado}");
   }
