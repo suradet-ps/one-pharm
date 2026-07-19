@@ -677,7 +677,7 @@ dependencies = [
  "log",
  "serde",
  "settings",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tiberius",
  "tokio",
  "tokio-util",
