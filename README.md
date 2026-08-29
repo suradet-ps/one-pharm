@@ -1,179 +1,136 @@
 # OnePharm
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/suradet-ps/one-pharm)
-[![Rust](https://img.shields.io/badge/Rust-1.85-orange.svg?logo=rust)](https://www.rust-lang.org)
-[![Tauri](https://img.shields.io/badge/Tauri-2-purple.svg?logo=tauri)](https://v2.tauri.app)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-
-> **Drug Inventory Analytics** — A cross-platform desktop application for evaluating pharmacy stock efficiency, built with Tauri 2 (Rust) + Vue 3 (TypeScript), connecting to SQL Server (INVS) in read-only mode.
-
-## Tech Stack
-
-| Layer    | Technology                                         |
-| -------- | -------------------------------------------------- |
-| Backend  | Rust via Tauri 2 — IPC commands                    |
-| Frontend | Vue 3 (Composition API, `<script setup>`)          |
-| Language | TypeScript (strict)                                 |
-| State    | Pinia                                               |
-| Router   | Vue Router 5                                        |
-| Database | SQL Server via `tiberius` (TDS protocol, no ODBC)  |
-| Pool     | bb8 + bb8-tiberius                                  |
-| Build    | Vite 8 (frontend) + Cargo (backend)                |
-
-## Quick Start
-
-### Prerequisites
-
-- **Rust** (1.85+) — [rustup.rs](https://rustup.rs)
-- **Node.js** (20.19+ or 22.12+) — [nodejs.org](https://nodejs.org)
-- **SQL Server** — INVS database accessible via TCP/IP (port 1433)
-
-### Setup & Run
-
-```bash
-npm install                    # Install Node dependencies
-cd src-tauri && cargo check    # Verify Rust compiles
-cd .. && npx tauri dev         # Launch with hot-reload
+```
+ ██████╗ ███╗   ██╗███████╗██████╗ ██╗  ██╗ █████╗ ██████╗ ███╗   ███╗
+██╔═══██╗████╗  ██║██╔════╝██╔══██╗██║  ██║██╔══██╗██╔══██╗████╗ ████║
+██║   ██║██╔██╗ ██║█████╗  ██████╔╝███████║███████║██████╔╝██╔████╔██║
+██║   ██║██║╚██╗██║██╔══╝  ██╔═══╝ ██║  ██║██╔══██║██╔══██╗██║╚██╔╝██║
+╚██████╔╝██║ ╚████║███████╗██║     ██║  ██║██║  ██║██║  ██║██║ ╚═╝ ██║
+ ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝
 ```
 
-### Build
+---
 
-```bash
-npx tauri build
+## ◆ PULSE
+
+A stockroom does not fail suddenly; it fails quietly, day by day, in
+days of supply. OnePharm evaluates pharmacy stock efficiency at a
+glance: warehouse, year (B.E.), and month in, and a scored answer out -
+overall grade A to D, the DOS distribution (stockout, low, normal,
+overstock), the top three issues, and a weighted KPI breakdown per drug
+with expiry lots tracked. Read from INVS SQL Server, read-only, on a
+desktop app that lives on the pharmacy's own machine.
+
+| Grade ▣ | DOS ▣ | KPIs ▣ | Expiry ▣ |
+|---|---|---|---|
+
+*v0.1.0 - the stock verdict is computed, never guessed.*
+
+> Built with Tauri 2 + Vue 3, read from SQL Server through `tiberius`
+> and `bb8`, scored by `kpi-core` - 23 tests hold the math honest.
+>
+> **suradet-ps**, artifact keeper
+
+---
+
+## ◆ IGNITION
+
+Three tools, one launch.
+
+```
+⟫ npm install
+⟫ cd src-tauri && cargo check
+⟫ cd .. && npx tauri dev
 ```
 
-Installer output: `src-tauri/target/release/bundle/`
+The release artifact: `⟫ npx tauri build` - installers land in
+`src-tauri/target/release/bundle/`.
 
-## Project Structure
+<details>
+<summary>Prerequisites</summary>
+
+- [Rust](https://rustup.rs) (1.85+)
+- Node.js 20.19+ or 22.12+
+- SQL Server with the INVS database reachable over TCP/IP (port 1433)
+
+</details>
+
+---
+
+## ◆ ANATOMY
+
+One pool, three crates, a scoring system with no hidden weights.
+
+- **Connects** - `bb8` + `bb8-tiberius` hold the SQL Server pool over
+  TDS - no ODBC, no driver installs; the connection is read-only by
+  design.
+- **Scores** - `kpi-core` computes the verdicts with fixed, published
+  weights: Turnover Rate 30%, Days of Supply 25%, Dead Stock 20%,
+  Expiry Risk 15%, Stock Accuracy 10%. Twenty-three unit tests pin the
+  math down.
+- **Classifies** - DOS under 7 days is Stockout Risk, 7-14 Low, 15-60
+  Normal, over 60 Overstock; dead stock is stock with receipts but no
+  issue for 60 days; expiry is graded Expired / Critical / Warning.
+- **Grades** - the weighted score becomes a letter: A at 80, B at 60,
+  C at 40, D below - one glance, one verdict.
+- **Details** - each drug opens its own card: five KPI breakdowns, the
+  movement flow (Opening, Receipt, Issue, Closing), the weight math,
+  and expiry lots with their own countdown.
+- **Remembers** - settings persist as JSON per OS (`%APPDATA%`, `~/Library`,
+  `~/.local/share`) - connection, rolling months, expiry warnings.
+
+---
+
+## ◆ RITUALS
+
+**The core ceremony** - the monthly stock review:
+
+1. Open OnePharm and connect to INVS. One configuration, remembered.
+2. Choose warehouse, year (B.E.), and month. The dashboard answers:
+   grade, DOS distribution, top three issues.
+3. Filter to the drug that matters; its KPI card shows the five scores,
+   the movement flow, and the expiry countdown.
+4. Decide with the numbers - stockout, overstock, or dead stock each
+   have a row in the table and a face in the chart.
+
+**The ceremony of the weight** - no score is a black box. The weights
+are printed in the settings, the math is unit-tested, and the grade
+traces to five named KPIs.
+
+**The ceremony of restraint** - OnePharm reads the INVS database and
+never writes a row. A dedicated SQL user is recommended over `sa`, and
+the connection never leaves the machine.
+
+---
+
+## ◆ ECHOES
+
+**Where this artifact is heading**
 
 ```
-one-pharm/
-├── index.html
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── src/                        # Vue 3 frontend
-│   ├── main.ts                 # App bootstrap
-│   ├── App.vue                 # Shell + sidebar
-│   ├── types/                  # TypeScript interfaces
-│   ├── api/                    # Tauri invoke wrappers
-│   ├── assets/main.css         # Design system (CSS vars)
-│   ├── router/                 # Vue Router routes
-│   ├── stores/                 # Pinia store
-│   ├── components/             # Reusable components
-│   └── views/                  # Page views
-└── src-tauri/                  # Rust backend
-    ├── Cargo.toml
-    ├── tauri.conf.json
-    ├── build.rs
-    └── src/
-        ├── main.rs             # Binary entry point
-        ├── lib.rs              # App setup + command registration
-        ├── commands.rs         # IPC commands
-        ├── database.rs         # Connection pool (tiberius + bb8)
-        ├── queries.rs          # SQL queries
-        ├── kpi.rs              # KPI calculation logic (23 tests)
-        └── settings.rs         # Persistent settings (JSON)
+connect ▸ tiberius + bb8 pool, TDS protocol, read-only ────────────── ▸ sealed
+score    ▸ 5 weighted KPIs, 23 tests, grades A-D ──────────────────── ▸ sealed
+classify ▸ DOS bands, dead stock, expiry tiers ────────────────────── ▸ sealed
+detail   ▸ per-drug KPI card, movement flow, expiry lots ──────────── ▸ sealed
+settings ▸ JSON persistence, connection test ──────────────────────── ▸ sealed
 ```
 
-## Features
+**Raising the artifact** - the workspace notes live in
+`docs/cargo-workspace.md`; the security posture in `docs/security.md`;
+the design language in `DESIGN.md`. Gates: `cargo fmt`, `cargo clippy`,
+`cargo test` (23 tests), `vue-tsc --noEmit`. Open an issue first to
+discuss a change.
 
-### Dashboard (`/`)
+**Status** - Rust checks and Windows builds run in CI on every push.
+[Watch the gates](.github/workflows).
 
-- Select warehouse, year (B.E.), and month to load data
-- Overall score with grade (A–D)
-- DOS distribution bar (Stockout / Low / Normal / Overstock)
-- Top 3 issues (Stockout, Overstock, Dead Stock)
-- Full drug table with filter, search, sort, pagination
+---
 
-### Drug Detail (`/drug/:code`)
-
-- 5 KPI breakdowns with individual scores
-- Movement flow: Opening → Receipt → Issue → Closing
-- Score breakdown with weights
-- Expiry lot tracking
-
-### Settings (`/settings`)
-
-- SQL Server connection configuration
-- Connection test
-- Rolling months and expiry warning defaults
-
-Settings are persisted as JSON at:
-
-| OS      | Path                                  |
-| ------- | ------------------------------------- |
-| macOS   | `~/Library/Application Support/com.onepharm.app/` |
-| Windows | `%APPDATA%\onepharm\app\data\`       |
-| Linux   | `~/.local/share/inventory/`          |
-
-## KPI System
-
-| KPI        | Condition                  | Status            |
-| ---------- | -------------------------- | ----------------- |
-| DOS        | < 7 days                   | Stockout Risk     |
-| DOS        | 7–14 days                  | Low Stock         |
-| DOS        | 15–60 days                 | Normal            |
-| DOS        | > 60 days                  | Overstock         |
-| Dead Stock | RM > 0, no issue ≥ 60 days | Dead Stock        |
-| Expiry     | ≤ 0 days                   | Expired           |
-| Expiry     | 1–30 days                  | Critical          |
-| Expiry     | 31–90 days                 | Warning           |
-
-### Weights
-
-| KPI            | Weight |
-| -------------- | ------ |
-| Turnover Rate  | 30%    |
-| Days of Supply | 25%    |
-| Dead Stock     | 20%    |
-| Expiry Risk    | 15%    |
-| Stock Accuracy | 10%    |
-
-### Grade
-
-| Grade | Score Range |
-| ----- | ----------- |
-| A     | ≥ 80        |
-| B     | 60–79       |
-| C     | 40–59       |
-| D     | < 40        |
-
-## IPC Commands
-
-| Command                | Description                     |
-| ---------------------- | ------------------------------- |
-| `health_check`         | Test database connection        |
-| `get_warehouses`       | List all warehouses             |
-| `get_kpi_summary`      | Warehouse-level KPI summary     |
-| `get_drug_kpi_list`    | Drug list with KPIs (filtered)  |
-| `get_drug_kpi_detail`  | Single drug KPI detail          |
-| `get_settings`         | Retrieve current settings       |
-| `save_settings`        | Save settings & reconnect       |
-| `test_db_connection`   | Validate DB connection          |
-
-## Development
-
-### Rust
-
-```bash
-cd src-tauri
-cargo fmt                          # Format
-cargo clippy -- -W clippy::all     # Lint
-cargo test                         # Run 23 unit tests
-cargo check                        # Type-check
+```
+  ─────────────────────────────────────────
+   Dead stock does not announce itself.
+   It waits to be counted.
+  ─────────────────────────────────────────
 ```
 
-### TypeScript
-
-```bash
-npx vue-tsc --noEmit    # Type-check
-npm run build           # Build (includes type-check)
-```
-
-## Security
-
-- **Read-only** — no writes to INVS database
-- Passwords stored only in local settings file
-- No network exposure — direct DB connection from desktop
-- Use a dedicated SQL user (not `sa`)
+Distributed under the [MIT License](LICENSE).
