@@ -1,13 +1,11 @@
 # OnePharm
 
-```
- ██████╗ ███╗   ██╗███████╗██████╗ ██╗  ██╗ █████╗ ██████╗ ███╗   ███╗
-██╔═══██╗████╗  ██║██╔════╝██╔══██╗██║  ██║██╔══██╗██╔══██╗████╗ ████║
-██║   ██║██╔██╗ ██║█████╗  ██████╔╝███████║███████║██████╔╝██╔████╔██║
-██║   ██║██║╚██╗██║██╔══╝  ██╔═══╝ ██╔══██║██╔══██║██╔══██╗██║╚██╔╝██║
-╚██████╔╝██║ ╚████║███████╗██║     ██║  ██║██║  ██║██║  ██║██║ ╚═╝ ██║
- ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝
-```
+[![CI](https://github.com/suradet-ps/one-pharm/actions/workflows/rust-check.yml/badge.svg)](https://github.com/suradet-ps/one-pharm/actions/workflows/rust-check.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust: stable](https://img.shields.io/badge/rust-stable-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2-24c8db.svg?logo=tauri&logoColor=white)](https://tauri.app/)
+[![Vue v3](https://img.shields.io/badge/Vue-v3-4FC08D.svg?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/suradet-ps/one-pharm/issues)
 
 ---
 
